@@ -182,6 +182,7 @@ def get_feature_data(
     max_number_of_images_per_iteration: int = 16_384,
     seed: int = 1,
     load_pretrained = False,
+    save_directory = "dashboard",
 ):
     '''
     Gets data that will be used to create the sequences in the HTML visualisation.
@@ -211,7 +212,7 @@ def get_feature_data(
         image_key = 'image'
         
     dataset = dataset.shuffle(seed = seed)
-    directory = "dashboard"
+    directory = save_directory
     
     if load_pretrained:
         max_activating_image_indices = torch.load(f'{directory}/max_activating_image_indices.pt')
@@ -223,6 +224,7 @@ def get_feature_data(
         sae_mean_acts = torch.zeros([sparse_autoencoder.cfg.d_sae]).to(sparse_autoencoder.cfg.device)
         number_of_images_processed = 0
         while number_of_images_processed < number_of_images:
+            print(f"number of images processed: {number_of_images_processed}")
             torch.cuda.empty_cache()
             try:
                 images = dataset[number_of_images_processed:number_of_images_processed + max_number_of_images_per_iteration][image_key]
@@ -230,16 +232,26 @@ def get_feature_data(
                 print('All of the images in the dataset have been processed!')
                 break
             
+            print("Start get_all_model_activations")
+            print_memory()
             model_activations = get_all_model_activations(model, images, sparse_autoencoder.cfg) # tensor of size [batch, d_resid]
+            
+            print("Start get_sae_activations")
+            print_memory()
             sae_activations = get_sae_activations(model_activations, sparse_autoencoder).transpose(0,1) # tensor of size [feature_idx, batch]
             del model_activations
             sae_mean_acts += sae_activations.sum(dim = 1)
             sae_sparsity += (sae_activations>0).sum(dim = 1)
-            
+
+            print("Start topk")
+            print_memory()
             # Convert the images list to a torch tensor
             values, indices = topk(sae_activations, k = number_of_max_activating_images, dim = 1) # sizes [sae_idx, images] is the size of this matrix correct?
             indices += number_of_images_processed
-            
+            del sae_activations
+
+            print("Start get_new_topk")
+            print_memory()
             max_activating_image_values, max_activating_image_indices = get_new_top_k(max_activating_image_values, max_activating_image_indices, values, indices, number_of_max_activating_images)
             
             """

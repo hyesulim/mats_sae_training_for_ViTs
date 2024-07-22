@@ -78,7 +78,7 @@ class new_sae(nn.Module):
 target_indices = [380,886,1773,2297,4482,11059,22604,26958,30387]
 
 # 774, 10057, 25081, 14061, 2681
-sae_path = "checkpoints/pcy601zk/final_sparse_autoencoder_openai/clip-vit-large-patch14_-2_resid_65536.pt"
+sae_path = "checkpoints/04hokkz8_standard/final_sparse_autoencoder_openai/clip-vit-large-patch14_-2_resid_65536.pt"
 loaded_object = torch.load(sae_path)
 cfg = loaded_object['cfg']
 state_dict = loaded_object['state_dict']
@@ -95,7 +95,8 @@ lr = [0.001,0.005,0.01,0.05]
 for target_index in target_indices:
     print(f'Starting feature viz for neuron {target_index}!')
     for learning_rate in lr:
-        config = {"leap_api_key": "LEAPIE908A240083F2956D8A4CF8B8C0689EB","lr":0.06,"leap_logging":False,"max_steps":max_steps, "use_blur":True}
+        # config = {"leap_api_key": "LEAPIE908A240083F2956D8A4CF8B8C0689EB","lr":0.06,"leap_logging":False,"max_steps":max_steps, "use_blur":True}
+        config = {"leap_api_key": "LEAPI5058224943365728DDE3E8F97D7F1D98","lr":learning_rate,"leap_logging":False,"max_steps":max_steps, "use_blur":True}
 
         res = engine.generate(
             project_name="MATS-cs_objective",

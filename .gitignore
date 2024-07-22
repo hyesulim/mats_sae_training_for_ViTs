@@ -185,3 +185,10 @@ saeexplorer/
 PXL_20240301_032537263.jpg
 
 feature_dashboards/
+slurms/
+slurm_scripts/
+artifacts/
+*.pt
+*.tar
+MATS_presentaion/
+.vscode/

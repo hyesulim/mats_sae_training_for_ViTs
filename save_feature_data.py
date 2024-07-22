@@ -27,8 +27,9 @@ if torch.backends.mps.is_available():
     device = "mps" 
 else:
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    
-sae_path = ""
+
+run_name = "wc79to7b"
+sae_path = f"/home/hgf_hmgu/hgf_rmp8147/dev/mats_sae_training_for_ViTs/checkpoints/{run_name}/final_sparse_autoencoder_openai/clip-vit-large-patch14_-2_resid_65536.pt"
 
 loaded_object = torch.load(sae_path)
 
@@ -44,7 +45,7 @@ sparse_autoencoder.eval()
 
 loader = ViTSparseAutoencoderSessionloader(cfg)
 
-model = loader.get_model(cfg.model_name)
+model = loader.get_model(cfg.model_name)\
 
 model.to(cfg.device)
 
@@ -53,4 +54,5 @@ get_feature_data(
     model,
     number_of_images = 524_288,
     number_of_max_activating_images = 20,
+    save_directory = f"dashboard/{run_name}"
 )

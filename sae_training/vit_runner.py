@@ -10,7 +10,7 @@ from sae_training.train_sae_on_vision_transformer import train_sae_on_vision_tra
 from sae_training.utils import ViTSparseAutoencoderSessionloader
 
 
-def vision_transformer_sae_runner(cfg):
+def vision_transformer_sae_runner(cfg, resume=False, resume_runname=None):
     
     if cfg.from_pretrained_path is not None:
         model, sparse_autoencoder, activations_loader = ViTSparseAutoencoderSessionloader.load_session_from_pretrained(
@@ -21,11 +21,14 @@ def vision_transformer_sae_runner(cfg):
         model, sparse_autoencoder, activations_loader = loader.load_session()
 
     if cfg.log_to_wandb:
+        # if resume:
+        #     wandb.init(project=cfg.wandb_project, config=cfg, resume=resume, name=resume_runname)
+        # else:
         wandb.init(project=cfg.wandb_project, config=cfg, name=cfg.run_name)
     
     # train SAE
     sparse_autoencoder = train_sae_on_vision_transformer(
-        model, sparse_autoencoder, activations_loader,
+        model, sparse_autoencoder, activations_loader, resume=resume, sparse_autoencoder_resume_dir=f"checkpoints/{resume_runname}"
     )
 
     # save sae to checkpoints folder

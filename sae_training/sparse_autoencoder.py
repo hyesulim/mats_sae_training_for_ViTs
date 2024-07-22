@@ -58,6 +58,15 @@ class SparseAutoencoder(HookedRootModule):
             )
         )
 
+        if self.cfg.gated_sae:
+            self.r_mag = nn.Parameter(
+                torch.zeros(self.d_sae, dtype=self.dtype, device=self.device)
+            )
+
+            self.b_mag = nn.Parameter(
+                torch.zeros(self.d_sae, dtype=self.dtype, device=self.device)
+            )
+
         with torch.no_grad():
             # Anthropic normalize this to have unit columns
             self.W_dec.data /= torch.norm(self.W_dec.data, dim=1, keepdim=True)
@@ -74,6 +83,12 @@ class SparseAutoencoder(HookedRootModule):
         self.setup()  # Required for `HookedRootModule`s
 
     def forward(self, x, dead_neuron_mask = None):
+        if self.cfg.gated_sae:
+            return self.forward_gated(x, dead_neuron_mask)
+        else:
+            return self.forward_standard(x, dead_neuron_mask)
+
+    def forward_standard(self, x, dead_neuron_mask = None):
         # move x to correct dtype
         x = x.to(self.dtype)
         sae_in = self.hook_sae_in(
@@ -117,7 +132,7 @@ class SparseAutoencoder(HookedRootModule):
             feature_acts_dead_neurons_only = torch.exp(hidden_pre[:, dead_neuron_mask])
             ghost_out =  feature_acts_dead_neurons_only @ self.W_dec[dead_neuron_mask,:]
             l2_norm_ghost_out = torch.norm(ghost_out, dim = -1)
-            norm_scaling_factor = l2_norm_residual / (1e-6+ l2_norm_ghost_out* 2)
+            norm_scaling_factor = l2_norm_residual / (1e-6 + l2_norm_ghost_out* 2)
             ghost_out = ghost_out*norm_scaling_factor[:, None].detach()
             
             # 3. 
@@ -128,6 +143,59 @@ class SparseAutoencoder(HookedRootModule):
             mse_loss_ghost_resid = mse_rescaling_factor * mse_loss_ghost_resid
 
         mse_loss_ghost_resid = mse_loss_ghost_resid.mean()
+        mse_loss = mse_loss.mean()
+        sparsity = torch.abs(feature_acts).sum(dim=1).mean(dim=(0,))
+        l1_loss = self.l1_coefficient * sparsity
+        loss = mse_loss + l1_loss + mse_loss_ghost_resid
+
+        return sae_out, feature_acts, loss, mse_loss, l1_loss, mse_loss_ghost_resid
+
+    def forward_gated(self, x, dead_neuron_mask = None):
+        # move x to correct dtype
+        x = x.to(self.dtype)
+        sae_in = self.hook_sae_in(
+            x - self.b_dec
+        )  # Remove encoder bias as per Anthropic
+
+        # Gating path
+        gating_hidden_pre = (
+            einops.einsum(
+                sae_in,
+                self.W_enc,
+                "... d_in, d_in d_sae -> ... d_sae",
+            )
+            + self.b_enc
+        )
+        gating_feature_acts = (gating_hidden_pre > 0).to(self.dtype)
+
+        # Magnitude path with weight sharing
+        magnitude_hidden_pre = self.hook_hidden_pre(
+            einops.einsum(
+                sae_in,
+                (self.W_enc * self.r_mag.exp()), # todo define self.r_mag
+                "... d_in, d_in d_sae -> ... d_sae",
+            )
+            + self.b_mag
+        )
+        magnitude_feature_acts = self.hook_hidden_post(torch.nn.functional.relu(magnitude_hidden_pre))
+
+        feature_acts = gating_feature_acts * magnitude_feature_acts
+
+        sae_out = self.hook_sae_out(
+            einops.einsum(
+                feature_acts,
+                self.W_dec,
+                "... d_sae, d_sae d_in -> ... d_in",
+            )
+            + self.b_dec
+        )
+        
+        # add config for whether l2 is normalized:
+        mse_loss = (torch.pow((sae_out-x.float()), 2) / (x**2).sum(dim=-1, keepdim=True).sqrt())
+        
+        mse_loss_ghost_resid = torch.tensor(0.0, dtype=self.dtype, device=self.device)
+        mse_loss_ghost_resid = mse_loss_ghost_resid.mean()
+
         mse_loss = mse_loss.mean()
         sparsity = torch.abs(feature_acts).sum(dim=1).mean(dim=(0,))
         l1_loss = self.l1_coefficient * sparsity

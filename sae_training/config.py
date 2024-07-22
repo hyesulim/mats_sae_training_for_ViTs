@@ -194,6 +194,7 @@ class ViTSAERunnerConfig():
     b_dec_init_method: str = "geometric_median"
     expansion_factor: int = 4
     from_pretrained_path: Optional[str] = None
+    gated_sae: bool = False
 
     # Training Parameters
     l1_coefficient: float = 1e-3
