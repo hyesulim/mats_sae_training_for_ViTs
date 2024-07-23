@@ -23,7 +23,7 @@ def train_sae_on_vision_transformer(
     sparse_autoencoder: SparseAutoencoder,
     activation_store: ViTActivationsStore,
     resume: bool = False,
-    sparse_autoencoder_resume_dir: str = None,
+    resume_cfg: dict = None,
 ):
     feature_sampling_method = sparse_autoencoder.cfg.feature_sampling_method
     batch_size = sparse_autoencoder.cfg.batch_size
@@ -36,18 +36,14 @@ def train_sae_on_vision_transformer(
         feature_sampling_method = feature_sampling_method.lower()
 
     if resume:
-        assert sparse_autoencoder_resume_dir is not None, "resume directory must be provided"
-        start_training_steps = 1250  # todo: move to config
-        state_dict_dir = os.path.join(
-            sparse_autoencoder_resume_dir,
-            f"{start_training_steps}_sparse_autoencoder_openai/clip-vit-large-patch14_-2_resid_65536.pt"
-        )
-        state_dict = torch.load(state_dict_dir)['state_dict']
+        assert resume_cfg is not None, "resume config must be provided"
+
+        state_dict = torch.load(resume_cfg['ckpt_path'])['state_dict']
         sparse_autoencoder.load_state_dict(state_dict)
 
         total_training_steps = total_training_tokens // batch_size
-        n_training_steps = start_training_steps
-        n_training_tokens = start_training_steps * batch_size
+        n_training_steps = resume_cfg['start_training_steps']
+        n_training_tokens = n_training_steps * batch_size
 
         # todo
         # track active features
@@ -65,7 +61,7 @@ def train_sae_on_vision_transformer(
         #     warm_up_steps=sparse_autoencoder.cfg.lr_warm_up_steps,
         #     training_steps=total_training_steps,
         #     lr_end=sparse_autoencoder.cfg.lr / 10,  # heuristic for now. 
-        #     last_epoch=start_training_steps - 1
+        #     last_epoch=resume_start_training_steps - 1
         # )
         scheduler = get_scheduler(None, optimizer=optimizer)
 
@@ -307,6 +303,9 @@ def run_evals(sparse_autoencoder: SparseAutoencoder, activation_store: ViTActiva
             },
             step=n_training_steps,
         )
+    
+    del model_inputs
+    torch.cuda.empty_cache()
 
 
 def kl_divergence_attention(y_true, y_pred):

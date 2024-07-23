@@ -49,7 +49,7 @@ cfg = ViTSAERunnerConfig(
     d_in = 1024,
 
     # SAE Parameters
-    expansion_factor = 64,
+    expansion_factor = 32,
     b_dec_init_method = "geometric_median",
     # gated_sae = True,
     gated_sae=False,
@@ -57,8 +57,8 @@ cfg = ViTSAERunnerConfig(
     # Training Parameters
     lr = 0.0004,
     # l1_coefficient = 0.0,
-    # l1_coefficient = 0.00008,
-    l1_coefficient = 0.0008,
+    l1_coefficient = 0.00008,
+    # l1_coefficient = 0.0008,
     lr_scheduler_name="constantwithwarmup",
     batch_size = 1024,
     lr_warm_up_steps=500,
@@ -89,10 +89,18 @@ cfg = ViTSAERunnerConfig(
     )
 
 torch.cuda.empty_cache()
-# run_name = "wc79to7b_standard_noghost"
-# cfg = torch.load(f"checkpoints/{run_name}/1250_sparse_autoencoder_openai/clip-vit-large-patch14_-2_resid_65536.pt")['cfg']
-# sparse_autoencoder, model = vision_transformer_sae_runner(cfg, resume=True, resume_runname=run_name)
-sparse_autoencoder, model = vision_transformer_sae_runner(cfg, resume=False)
+### resume
+resume_cfg = {
+    "run_name" : "yzdd34k7",
+    "start_training_steps" : 1750,
+    "pt_name" : "clip-vit-large-patch14_-2_resid_32768.pt",
+}
+ckpt_path = os.path.join("checkpoints", resume_cfg['run_name'], f"{resume_cfg['start_training_steps']}_sparse_autoencoder_openai", resume_cfg["pt_name"])
+resume_cfg['ckpt_path'] = ckpt_path
+cfg = torch.load(ckpt_path)['cfg']
+sparse_autoencoder, model = vision_transformer_sae_runner(cfg, resume=True, resume_cfg=resume_cfg)
+### from scratch
+# sparse_autoencoder, model = vision_transformer_sae_runner(cfg, resume=False)
 sparse_autoencoder.eval()
 
 
